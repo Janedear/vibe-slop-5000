@@ -1,0 +1,23 @@
+name: Neural map synthetic contract tests
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/neural-map-contract.yml'
+      - 'packages/dashboard/app/components/NeuralCommandMap/**'
+      - 'tests/neural-map-contract/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test real event bridge with synthetic WebSocket and demo source contract
+        run: node --test tests/neural-map-contract/*.test.mjs

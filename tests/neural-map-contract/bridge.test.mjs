@@ -56,12 +56,11 @@ test('WebSocket bridge connects, emits valid event, ignores malformed JSON, and 
   }
 });
 
-test('demo source must not present synthetic events as LIVE', async () => {
+test('demo/live/offline source labels are separated in the actual component', async () => {
   const src = await readFile(componentSource, 'utf8');
-  assert.match(src, /new MockEventGenerator\(\)/, 'test requires explicit demo mode');
-  assert.match(src, /setConnected\(true\)/, 'demo path changed: re-evaluate test oracle');
-  assert.match(src, /isConnected\s*\?\s*`[^\`]*LIVE/, 'HUD implementation changed: re-evaluate oracle');
-  // This currently FAILS by design: boolean "connected" is set true for mock generator,
-  // and the HUD renders LIVE. Fix by tracking source explicitly and labeling demo.
-  assert.fail('Confirmed source-level contract violation: mock generator sets connected=true and HUD uses connected=true for LIVE. Fix and update this test to assert corrected behavior.');
+  assert.match(src, /new MockEventGenerator\\(\\)/);
+  assert.match(src, /setConnected\\(false\\)\\s*;\\(bridge as MockEventGenerator\\)\\.start\\(\\)/);
+  assert.match(src, /Boolean\\(wsUrl\\)/, 'source identity must be passed to HUD');
+  assert.match(src, /!hasLiveSource\\s*\\?[^\\n]*DEMO/s, 'demo must take precedence over connected state');
+  assert.match(src, /OFFLINE/, 'configured but disconnected live stream needs an offline label');
 });

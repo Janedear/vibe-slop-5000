@@ -1,0 +1,53 @@
+# Fly.io deployment for Fusion (https://github.com/Runfusion/Fusion).
+#
+# Fusion is a stateful server, not a static site: it runs the dashboard/API on
+# port 4040, keeps embedded Postgres + global state under /home/node/.fusion,
+# and clones the projects it works on into /workspace. Both paths must be on a
+# persistent volume, and the machine must stay running because agents execute.
+#
+# Deploy with deploy/deploy-fly.sh (it creates the app + the two volumes first).
+
+app = "fusion-dashboard"
+
+primary_region = "iad"
+
+[build]
+  # The upstream repository's own multi-stage Dockerfile.
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4040"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 4040
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+# Dockerfile HEALTHCHECK already probes this; /api/health is the one route that
+# stays public when the dashboard bearer token is set.
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "5s"
+  grace_period = "90s"
+  method = "GET"
+  path = "/api/health"
+
+# Agent worktrees, pnpm builds and embedded Postgres need more than 256MB.
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2
+
+# Global state: embedded Postgres, settings, agents.
+[[mounts]]
+  source = "fusion_home"
+  destination = "/home/node"
+
+# Projects Fusion clones and works in.
+[[mounts]]
+  source = "fusion_workspace"
+  destination = "/workspace"

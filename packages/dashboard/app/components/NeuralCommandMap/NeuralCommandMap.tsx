@@ -122,7 +122,7 @@ export const NeuralCommandMap = ({
       })
       ;(bridge as FusionEventBridge).connect()
     } else {
-      setConnected(true)
+      setConnected(false)
       ;(bridge as MockEventGenerator).start()
     }
 
@@ -174,7 +174,7 @@ export const NeuralCommandMap = ({
     }
 
     // HUD overlay
-    drawHUD(ctx, w, h, s.agents.size, s.totalCostUsd, s.mode, connected, t)
+    drawHUD(ctx, w, h, s.agents.size, s.totalCostUsd, s.mode, connected, Boolean(wsUrl), t)
 
     // Prune edge particles for removed edges
     pruneEdgeParticles(new Set(s.edges.keys()))
@@ -186,7 +186,7 @@ export const NeuralCommandMap = ({
     }
 
     rafRef.current = requestAnimationFrame(renderFrame)
-  }, [dims, stateRef, tick, selectedId, connected])
+  }, [dims, stateRef, tick, selectedId, connected, wsUrl])
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(renderFrame)
@@ -203,10 +203,15 @@ export const NeuralCommandMap = ({
     cost: number,
     activeMode: NCMMode,
     isConnected: boolean,
+    hasLiveSource: boolean,
     t: number,
   ) => {
     // Top-right status pill
-    const pillText = isConnected ? `● LIVE  ${nAgents} agents` : `○ DEMO  ${nAgents} agents`
+    const pillText = !hasLiveSource
+      ? `○ DEMO  ${nAgents} agents`
+      : isConnected
+        ? `● LIVE  ${nAgents} agents`
+        : `○ OFFLINE  ${nAgents} agents`
     ctx.font = '10px "Inter", monospace'
     ctx.textBaseline = 'top'
     ctx.textAlign = 'right'

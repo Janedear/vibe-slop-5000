@@ -24,6 +24,7 @@ import {
 } from './canvas/draw-particles'
 import { drawMissionUniverse } from './canvas/draw-mission-universe'
 import { drawPipeline } from './canvas/draw-pipeline'
+import { NeuralCommandMapGuide } from './NeuralCommandMapGuide'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,13 @@ export const NeuralCommandMap = ({
   const [connected, setConnected] = useState(false)
   const [agentCount, setAgentCount] = useState(0)
   const [totalCost, setTotalCost] = useState(0)
+  const [guideOpen, setGuideOpen] = useState(true)
+
+  /*
+  No wsUrl means the MockEventGenerator drives this view, not a real session.
+  The HUD must say so instead of reporting a live connection it does not have.
+  */
+  const demo = !wsUrl
 
   // Canvas dimensions in CSS pixels
   const [dims, setDims] = useState({ w: 800, h: height ?? 600 })
@@ -174,7 +182,7 @@ export const NeuralCommandMap = ({
     }
 
     // HUD overlay
-    drawHUD(ctx, w, h, s.agents.size, s.totalCostUsd, s.mode, connected, t)
+    drawHUD(ctx, w, h, s.agents.size, s.totalCostUsd, s.mode, connected, demo, t)
 
     // Prune edge particles for removed edges
     pruneEdgeParticles(new Set(s.edges.keys()))
@@ -186,7 +194,7 @@ export const NeuralCommandMap = ({
     }
 
     rafRef.current = requestAnimationFrame(renderFrame)
-  }, [dims, stateRef, tick, selectedId, connected])
+  }, [dims, stateRef, tick, selectedId, connected, demo])
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(renderFrame)
@@ -203,14 +211,23 @@ export const NeuralCommandMap = ({
     cost: number,
     activeMode: NCMMode,
     isConnected: boolean,
+    isDemo: boolean,
     t: number,
   ) => {
     // Top-right status pill
-    const pillText = isConnected ? `● LIVE  ${nAgents} agents` : `○ DEMO  ${nAgents} agents`
+    const pillText = isDemo
+      ? `○ DEMO — sample data · ${nAgents} agents`
+      : isConnected
+        ? `● LIVE  ${nAgents} agents`
+        : `○ OFFLINE  ${nAgents} agents`
     ctx.font = '10px "Inter", monospace'
     ctx.textBaseline = 'top'
     ctx.textAlign = 'right'
-    ctx.fillStyle = isConnected ? NCM_PALETTE.success : NCM_PALETTE.muted
+    ctx.fillStyle = isDemo
+      ? NCM_PALETTE.waiting_permission
+      : isConnected
+        ? NCM_PALETTE.success
+        : NCM_PALETTE.error
     ctx.fillText(pillText, w - 12, 12)
 
     // Cost (if any)
@@ -307,72 +324,106 @@ export const NeuralCommandMap = ({
         ))}
       </div>
 
-      {/* Selected agent detail panel */}
-      {selectedAgent && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            left: 12,
-            width: 200,
-            background: NCM_PALETTE.surface1 + 'EE',
-            border: `1px solid ${NCM_PALETTE.border}`,
-            borderRadius: 10,
-            padding: '12px 14px',
-            fontSize: 11,
-            color: NCM_PALETTE.cream,
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 6, color: NCM_PALETTE.hot }}>
-            {selectedAgent.name}
-          </div>
-          <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
-            State:{' '}
-            <span style={{ color: NCM_PALETTE.accent }}>{selectedAgent.state}</span>
-          </div>
-          {selectedAgent.runtime && (
-            <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
-              Runtime:{' '}
-              <span style={{ color: NCM_PALETTE.cream }}>{selectedAgent.runtime}</span>
-            </div>
-          )}
-          <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
-            Tokens:{' '}
-            <span style={{ color: NCM_PALETTE.info }}>
-              {selectedAgent.tokensUsed.toLocaleString()} /&nbsp;
-              {selectedAgent.tokensMax.toLocaleString()}
-            </span>
-          </div>
-          {selectedAgent.costUsd !== undefined && (
-            <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
-              Cost:{' '}
-              <span style={{ color: NCM_PALETTE.cream }}>
-                ${selectedAgent.costUsd.toFixed(4)}
-              </span>
-            </div>
-          )}
-          <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
-            Tool calls:{' '}
-            <span style={{ color: NCM_PALETTE.cream }}>{selectedAgent.toolCalls}</span>
-          </div>
-          <button
-            onClick={() => setSelectedId(null)}
+      {/* Left column: the how-to-read panel, then the selected agent's detail */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          maxHeight: 'calc(100% - 88px)',
+          overflowY: 'auto',
+        }}
+      >
+        {guideOpen && <NeuralCommandMapGuide demo={demo} onClose={() => setGuideOpen(false)} />}
+
+        {selectedAgent && (
+          <div
             style={{
-              marginTop: 8,
-              width: '100%',
-              padding: '3px 0',
-              borderRadius: 6,
+              width: 200,
+              background: NCM_PALETTE.surface1 + 'EE',
               border: `1px solid ${NCM_PALETTE.border}`,
-              background: 'transparent',
-              color: NCM_PALETTE.muted,
-              fontSize: 10,
-              cursor: 'pointer',
+              borderRadius: 10,
+              padding: '12px 14px',
+              fontSize: 11,
+              color: NCM_PALETTE.cream,
+              backdropFilter: 'blur(8px)',
             }}
           >
-            Dismiss
-          </button>
-        </div>
+            <div style={{ fontWeight: 700, marginBottom: 6, color: NCM_PALETTE.hot }}>
+              {selectedAgent.name}
+            </div>
+            <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
+              State:{' '}
+              <span style={{ color: NCM_PALETTE.accent }}>{selectedAgent.state}</span>
+            </div>
+            {selectedAgent.runtime && (
+              <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
+                Runtime:{' '}
+                <span style={{ color: NCM_PALETTE.cream }}>{selectedAgent.runtime}</span>
+              </div>
+            )}
+            <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
+              Tokens:{' '}
+              <span style={{ color: NCM_PALETTE.info }}>
+                {selectedAgent.tokensUsed.toLocaleString()} /&nbsp;
+                {selectedAgent.tokensMax.toLocaleString()}
+              </span>
+            </div>
+            {selectedAgent.costUsd !== undefined && (
+              <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
+                Cost:{' '}
+                <span style={{ color: NCM_PALETTE.cream }}>
+                  ${selectedAgent.costUsd.toFixed(4)}
+                </span>
+              </div>
+            )}
+            <div style={{ color: NCM_PALETTE.muted, marginBottom: 4 }}>
+              Tool calls:{' '}
+              <span style={{ color: NCM_PALETTE.cream }}>{selectedAgent.toolCalls}</span>
+            </div>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{
+                marginTop: 8,
+                width: '100%',
+                padding: '3px 0',
+                borderRadius: 6,
+                border: `1px solid ${NCM_PALETTE.border}`,
+                background: 'transparent',
+                color: NCM_PALETTE.muted,
+                fontSize: 10,
+                cursor: 'pointer',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Re-open the explanation after it has been dismissed */}
+      {!guideOpen && (
+        <button
+          onClick={() => setGuideOpen(true)}
+          style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 16,
+            padding: '5px 12px',
+            borderRadius: 20,
+            border: `1px solid ${NCM_PALETTE.border}`,
+            background: NCM_PALETTE.surface1,
+            color: NCM_PALETTE.blush,
+            fontSize: 10,
+            cursor: 'pointer',
+            letterSpacing: '0.04em',
+          }}
+        >
+          ? How to read this
+        </button>
       )}
     </div>
   )
